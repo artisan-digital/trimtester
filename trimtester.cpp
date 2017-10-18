@@ -218,21 +218,17 @@ private:
         MMapedFile mmap(filename.c_str());
         if (mmap.loaded()) {
             bool corrupted = false;
-            // Detect all 512-bytes page inside the file filled by 0 -> can be caused by a buggy Trim
-            for (unsigned i = 0; !corrupted && i < mmap.len(); i += 512) {
-                if (mmap.len() - i > 4) { // only check page > 4-bytes to avoid false positive
-                    bool pagecorrupted = true; 
-                    for (unsigned j = i; j < mmap.len() && j < (i + 512); ++j) {                    
-                        if (mmap.content()[j] != 0)
-                            pagecorrupted = false;
-                    }
-                    if (pagecorrupted)
-                        corrupted = true;
-
+            int64_t zcount = 0;
+            for (const char *p = mmap.content(); p < mmap.content() + mmap.len(); p++) {
+                // no zero bytes should be in file because none were written:
+                if (*p == 0) {
+                    corrupted = true;
+                    zcount++;
                 }
             }
             if (corrupted) {
-                std::cerr << "Corrupted file found: " << filename << std::endl;
+                std::cerr << "Corrupted file found: " << filename
+                    << " (" << zcount << " total zero bytes)" <<std::endl;
                 exit(1);
             }
 
@@ -270,15 +266,13 @@ void writeAtomically(const std::string &dataDir, unsigned folder, unsigned file,
 
     for (unsigned i = 0; i < 65536; ++i) {
         buff[i] = (seed + i) % 256;
+        if (buff[i] == 0)
+            buff[i] = 0xff;     // no zero bytes will be written
     }
     { // write file1.bin.tmp
         FILE *file = fopen(tmpFile.c_str(), "wb");
         assert(file != NULL);
         uint64_t sizeToWrite = size;
-
-        const int64_t GB = 1024*1024*1024;
-        if (sizeToWrite > 4*GB)
-            sizeToWrite = 4*GB;
 
         while (sizeToWrite > 0) {
             uint64_t toWrite = (sizeToWrite > 65536 ? 65536 : sizeToWrite);
