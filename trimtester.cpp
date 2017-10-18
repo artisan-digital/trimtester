@@ -276,6 +276,10 @@ void writeAtomically(const std::string &dataDir, unsigned folder, unsigned file,
         assert(file != NULL);
         uint64_t sizeToWrite = size;
 
+        const int64_t GB = 1024*1024*1024;
+        if (sizeToWrite > 4*GB)
+            sizeToWrite = 4*GB;
+
         while (sizeToWrite > 0) {
             uint64_t toWrite = (sizeToWrite > 65536 ? 65536 : sizeToWrite);
             uint64_t nb = fwrite(buff, 1, toWrite, file);
