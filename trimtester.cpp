@@ -217,21 +217,14 @@ private:
         filename.append(file);
         MMapedFile mmap(filename.c_str());
         if (mmap.loaded()) {
-            bool corrupted = false;
-            int64_t zcount = 0;
             for (const char *p = mmap.content(); p < mmap.content() + mmap.len(); p++) {
-                // no zero bytes should be in file because none were written:
                 if (*p == 0) {
-                    corrupted = true;
-                    zcount++;
+                    // no zero bytes should be in file because none were written
+                    std::cerr << "Corrupted file found: " << filename
+                        << ", zero byte in file at byte address: " << p - mmap.content() <<std::endl;
+                    exit(1);
                 }
             }
-            if (corrupted) {
-                std::cerr << "Corrupted file found: " << filename
-                    << " (" << zcount << " total zero bytes)" <<std::endl;
-                exit(1);
-            }
-
         }
     }
 
@@ -262,9 +255,9 @@ void writeAtomically(const std::string &dataDir, unsigned folder, unsigned file,
     std::string destFile = ss.str();
     ss << ".tmp";
     std::string tmpFile = ss.str();
-    unsigned char buff[65535];
+    unsigned char buff[64*1024];
 
-    for (unsigned i = 0; i < 65536; ++i) {
+    for (unsigned i = 0; i < sizeof(buff); ++i) {
         buff[i] = (seed + i) % 256;
         if (buff[i] == 0)
             buff[i] = 0xff;     // no zero bytes will be written
@@ -272,11 +265,11 @@ void writeAtomically(const std::string &dataDir, unsigned folder, unsigned file,
     { // write file1.bin.tmp
         FILE *file = fopen(tmpFile.c_str(), "wb");
         assert(file != NULL);
-        uint64_t sizeToWrite = size;
+        int64_t sizeToWrite = size; // because uint64_t is ALWAYS >= zero
 
         while (sizeToWrite > 0) {
-            uint64_t toWrite = (sizeToWrite > 65536 ? 65536 : sizeToWrite);
-            uint64_t nb = fwrite(buff, 1, toWrite, file);
+            size_t toWrite = (sizeToWrite > sizeof(buff) ? sizeof(buff) : sizeToWrite);
+            size_t nb = fwrite(buff, 1, toWrite, file);
             if (nb != toWrite) {
                 std::cerr << "Disk full, rm folder & restart the test" << std::endl;
                 exit(0);
