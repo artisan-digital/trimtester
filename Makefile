@@ -1,5 +1,8 @@
+
+LDLIBS = -lboost_system -lboost_thread 
+
 all:
-	g++ -g2 trimtester.cpp -lboost_system -lboost_thread -o TrimTester
+	g++ -g2 trimtester.cpp -o TrimTester
 
 clean:
 	rm -f *~ TrimTester
